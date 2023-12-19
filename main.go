@@ -76,7 +76,7 @@ func run() error {
 				{
 					Label:       "Override",
 					Description: "Override the release lock",
-					Identifier:  "override_release_lock",
+					Identifier:  "override_rel_lock",
 				},
 			},
 		})
