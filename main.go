@@ -67,7 +67,7 @@ func run() error {
 
 		_, _, err = client.Checks.CreateCheckRun(context.TODO(), owner, repo, github.CreateCheckRunOptions{
 			Name:       "Example Release Check",
-			HeadSHA:    event.GetPullRequest().GetMergeCommitSHA(),
+			HeadSHA:    event.GetAfter(),
 			Status:     github.String("completed"),
 			Conclusion: github.String("failure"),
 		})
@@ -76,6 +76,7 @@ func run() error {
 			return fmt.Errorf("couldn't create check: %w", err)
 		}
 
+		logger.Info("added failure status check")
 		return nil
 	})
 	handle.OnIssueCommentCreated(func(deliveryID, eventName string, event *github.IssueCommentEvent) error {
