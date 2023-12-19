@@ -72,6 +72,13 @@ func run() error {
 			HeadSHA:    event.GetAfter(),
 			Status:     github.String("completed"),
 			Conclusion: github.String("failure"),
+			Actions: []*github.CheckRunAction{
+				{
+					Label:       "Override",
+					Description: "Override the release lock",
+					Identifier:  "override_release_lock",
+				},
+			},
 		})
 		if err != nil {
 			logger.Error("couldn't create check", "err", err)
@@ -132,8 +139,6 @@ func run() error {
 				return fmt.Errorf("couldn't get checks: %w", err)
 			}
 
-			fmt.Printf("%#v\n", checkResults)
-
 			var checkID int64
 			for _, check := range checkResults.CheckRuns {
 				checkID = check.GetID()
@@ -141,6 +146,7 @@ func run() error {
 
 			_, _, err = client.Checks.UpdateCheckRun(context.Background(), owner, repo, checkID, github.UpdateCheckRunOptions{
 				Name:       checkName,
+				Status:     github.String("completed"),
 				Conclusion: github.String("success"),
 			})
 			if err != nil {
