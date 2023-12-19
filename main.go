@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"strings"
 
 	"github.com/cbrgm/githubevents/githubevents"
 	"github.com/google/go-github/v56/github"
@@ -42,26 +43,75 @@ func run() error {
 	logger := newLogger(cfg)
 
 	handle := githubevents.New(cfg.WebhookSecret)
+	handle.OnPullRequestEventSynchronize(func(deliveryID, eventName string, event *github.PullRequestEvent) error {
+		fullName := strings.Split(event.GetRepo().GetFullName(), "/")
+		if len(fullName) != 2 {
+			return fmt.Errorf("invalid repo name '%s'", event.GetRepo().GetFullName())
+		}
+
+		owner := fullName[0]
+		repo := fullName[1]
+		installationID := event.GetInstallation().GetID()
+		logger := logger.With(
+			"owner", owner,
+			"repo", repo,
+			"installationID", installationID,
+		)
+		logger.Debug("got PR sync hook")
+
+		client, err := ghClient.GetInstallationClient(context.TODO(), installationID)
+		if err != nil {
+			logger.Error("couldn't get install token", "err", err)
+			return fmt.Errorf("couldn't get install token for repo: %w", err)
+		}
+
+		_, _, err = client.Checks.CreateCheckRun(context.TODO(), owner, repo, github.CreateCheckRunOptions{
+			Name:       "Example Release Check",
+			HeadSHA:    event.GetPullRequest().GetMergeCommitSHA(),
+			Status:     github.String("completed"),
+			Conclusion: github.String("failure"),
+		})
+		if err != nil {
+			logger.Error("couldn't create check", "err", err)
+			return fmt.Errorf("couldn't create check: %w", err)
+		}
+
+		return nil
+	})
 	handle.OnIssueCommentCreated(func(deliveryID, eventName string, event *github.IssueCommentEvent) error {
-		owner := event.GetRepo().GetOwner().GetName()
-		repo := event.GetRepo().GetName()
-		commentID := int(event.GetComment().GetID())
+		fullName := strings.Split(event.GetRepo().GetFullName(), "/")
+		if len(fullName) != 2 {
+			return fmt.Errorf("invalid repo name '%s'", event.GetRepo().GetFullName())
+		}
+
+		owner := fullName[0]
+		repo := fullName[1]
+		installationID := event.GetInstallation().GetID()
+		commentID := event.GetComment().GetID()
 
 		logger := logger.With(
 			"owner", owner,
 			"repo", repo,
+			"installationID", installationID,
 			"commentID", commentID,
 		)
 		logger.Debug("got comment hook")
-		client, err := ghClient.GetInstallationClient(context.TODO(), owner, repo)
+		client, err := ghClient.GetInstallationClient(context.TODO(), installationID)
 		if err != nil {
+			logger.Error("couldn't get install token", "err", err)
 			return fmt.Errorf("couldn't get install token for repo: %w", err)
 		}
 
-		_, _, err = client.Reactions.CreateIssueReaction(context.TODO(), owner, repo, commentID, "eyes")
+		_, _, err = client.Reactions.CreateCommentReaction(context.TODO(), owner, repo, commentID, "eyes")
 		if err != nil {
+			logger.Error("couldn't create reaction", "err", err)
 			return fmt.Errorf("couldn't create issue reaction: %w", err)
 		}
+		// comment, _, err := client.Issues.GetComment(context.Background(), owner, repo, commentID)
+		// if err != nil {
+		// 	logger.Error("couldn't get comment", "err", err)
+		// 	return fmt.Errorf("couldn't get comment: %w", err)
+		// }
 
 		logger.Info("added reaction",
 			"reaction", "eyes")

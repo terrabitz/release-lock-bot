@@ -23,13 +23,8 @@ func NewGitHubAppClient(cfg Config) (*GitHubAppClient, error) {
 	return &GitHubAppClient{client}, nil
 }
 
-func (ghClient *GitHubAppClient) GetInstallationClient(ctx context.Context, owner, repo string) (*github.Client, error) {
-	install, _, err := ghClient.Apps.FindRepositoryInstallation(ctx, owner, repo)
-	if err != nil {
-		return nil, fmt.Errorf("couldn't find repo installation: %w", err)
-	}
-
-	token, _, err := ghClient.Apps.CreateInstallationToken(ctx, install.GetID(), &github.InstallationTokenOptions{})
+func (ghClient *GitHubAppClient) GetInstallationClient(ctx context.Context, installationId int64) (*github.Client, error) {
+	token, _, err := ghClient.Apps.CreateInstallationToken(ctx, installationId, &github.InstallationTokenOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("couldn't create installation token: %w", err)
 	}
