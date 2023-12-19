@@ -160,6 +160,51 @@ func run() error {
 		return nil
 	})
 
+	handle.OnCheckRunEventRequestAction(func(deliveryID, eventName string, event *github.CheckRunEvent) error {
+		if event.GetRequestedAction().Identifier != overrideReleaseLockActionID {
+			return nil
+		}
+
+		fullName := strings.Split(event.GetRepo().GetFullName(), "/")
+		if len(fullName) != 2 {
+			return fmt.Errorf("invalid repo name '%s'", event.GetRepo().GetFullName())
+		}
+
+		owner := fullName[0]
+		repo := fullName[1]
+		installationID := event.GetInstallation().GetID()
+		checkID := event.GetCheckRun().GetID()
+		prs := Map(event.GetCheckRun().PullRequests, func(pr *github.PullRequest) int {
+			return pr.GetNumber()
+		})
+
+		logger := logger.With(
+			"owner", owner,
+			"repo", repo,
+			"installationID", installationID,
+			"pullRequests", prs,
+		)
+
+		client, err := ghClient.GetInstallationClient(context.TODO(), installationID)
+		if err != nil {
+			logger.Error("couldn't get install token", "err", err)
+			return fmt.Errorf("couldn't get install token for repo: %w", err)
+		}
+
+		_, _, err = client.Checks.UpdateCheckRun(context.Background(), owner, repo, checkID, github.UpdateCheckRunOptions{
+			Name:       checkName,
+			Status:     github.String("completed"),
+			Conclusion: github.String("success"),
+		})
+		if err != nil {
+			logger.Error("couldn't update check", "err", err)
+			return fmt.Errorf("couldn't update checks: %w", err)
+		}
+
+		logger.Info("override release lock")
+		return nil
+	})
+
 	// add a http handleFunc
 	http.HandleFunc("/hook", func(w http.ResponseWriter, r *http.Request) {
 		err := handle.HandleEventRequest(r)
@@ -191,4 +236,13 @@ func LoadConfig() (Config, error) {
 	var cfg Config
 	err := envconfig.Process("", &cfg)
 	return cfg, err
+}
+
+func Map[T, U any](tt []T, fn func(T) U) []U {
+	var ret []U
+	for _, t := range tt {
+		ret = append(ret, fn(t))
+	}
+
+	return ret
 }
