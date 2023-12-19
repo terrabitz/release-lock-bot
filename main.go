@@ -15,7 +15,10 @@ import (
 	"github.com/kelseyhightower/envconfig"
 )
 
-const checkName = "Example Release Check"
+const (
+	checkName                   = "Example Release Check"
+	overrideReleaseLockActionID = "override_rel_lock"
+)
 
 type Config struct {
 	WebhookSecret       string     `envconfig:"WEBHOOK_SECRET" required:"true"`
@@ -74,9 +77,9 @@ func run() error {
 			Conclusion: github.String("failure"),
 			Actions: []*github.CheckRunAction{
 				{
-					Label:       "Override",
+					Label:       "Override Lock",
 					Description: "Override the release lock",
-					Identifier:  "override_rel_lock",
+					Identifier:  overrideReleaseLockActionID,
 				},
 			},
 		})
@@ -88,6 +91,7 @@ func run() error {
 		logger.Info("added failure status check")
 		return nil
 	})
+
 	handle.OnIssueCommentCreated(func(deliveryID, eventName string, event *github.IssueCommentEvent) error {
 		fullName := strings.Split(event.GetRepo().GetFullName(), "/")
 		if len(fullName) != 2 {
@@ -123,37 +127,36 @@ func run() error {
 			return nil
 		}
 
-		prs, _, err := client.PullRequests.List(context.Background(), owner, repo, &github.PullRequestListOptions{})
+		pr, _, err := client.PullRequests.Get(context.Background(), owner, repo, event.GetIssue().GetNumber())
 		if err != nil {
-			logger.Error("couldn't get PRs", "err", err)
-			return fmt.Errorf("couldn't get PRs: %w", err)
+			logger.Error("couldn't get PR", "err", err)
+			return fmt.Errorf("couldn't get PR: %w", err)
 		}
 
-		for _, pr := range prs {
-			checkResults, _, err := client.Checks.ListCheckRunsForRef(context.Background(), owner, repo, pr.GetHead().GetSHA(), &github.ListCheckRunsOptions{
-				CheckName: github.String(checkName),
-				AppID:     github.Int64(cfg.GitHubAppID),
-			})
-			if err != nil {
-				logger.Error("couldn't get checks", "err", err)
-				return fmt.Errorf("couldn't get checks: %w", err)
-			}
-
-			var checkID int64
-			for _, check := range checkResults.CheckRuns {
-				checkID = check.GetID()
-			}
-
-			_, _, err = client.Checks.UpdateCheckRun(context.Background(), owner, repo, checkID, github.UpdateCheckRunOptions{
-				Name:       checkName,
-				Status:     github.String("completed"),
-				Conclusion: github.String("success"),
-			})
-			if err != nil {
-				logger.Error("couldn't update check", "err", err)
-				return fmt.Errorf("couldn't update checks: %w", err)
-			}
+		checkResults, _, err := client.Checks.ListCheckRunsForRef(context.Background(), owner, repo, pr.GetHead().GetSHA(), &github.ListCheckRunsOptions{
+			CheckName: github.String(checkName),
+			AppID:     github.Int64(cfg.GitHubAppID),
+		})
+		if err != nil {
+			logger.Error("couldn't get checks", "err", err)
+			return fmt.Errorf("couldn't get checks: %w", err)
 		}
+
+		var checkID int64
+		for _, check := range checkResults.CheckRuns {
+			checkID = check.GetID()
+		}
+
+		_, _, err = client.Checks.UpdateCheckRun(context.Background(), owner, repo, checkID, github.UpdateCheckRunOptions{
+			Name:       checkName,
+			Status:     github.String("completed"),
+			Conclusion: github.String("success"),
+		})
+		if err != nil {
+			logger.Error("couldn't update check", "err", err)
+			return fmt.Errorf("couldn't update checks: %w", err)
+		}
+
 		return nil
 	})
 
