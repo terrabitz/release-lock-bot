@@ -88,8 +88,9 @@ func run() error {
 		time.Sleep(10 * time.Second)
 
 		_, _, err = client.Checks.UpdateCheckRun(context.TODO(), owner, repo, check.GetID(), github.UpdateCheckRunOptions{
-			Name:   checkName,
-			Status: github.String("failure"),
+			Name:       checkName,
+			Status:     github.String("completed"),
+			Conclusion: github.String("failure"),
 			Output: &github.CheckRunOutput{
 				Title:   github.String("Release locked due to failed release"),
 				Summary: github.String("Release locked due to failed release"),
@@ -164,7 +165,8 @@ func run() error {
 			Status:     github.String("completed"),
 			Conclusion: github.String("success"),
 			Output: &github.CheckRunOutput{
-				Title: github.String("Release lock manually overridden"),
+				Title:   github.String("Release lock manually overridden"),
+				Summary: github.String("Release lock manually overridden"),
 			},
 		})
 		if err != nil {
@@ -220,7 +222,8 @@ func run() error {
 			Status:     github.String("completed"),
 			Conclusion: github.String("success"),
 			Output: &github.CheckRunOutput{
-				Title: github.String("Release lock manually overridden"),
+				Title:   github.String("Release lock manually overridden"),
+				Summary: github.String("Release lock manually overridden"),
 			},
 		})
 		if err != nil {
