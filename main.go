@@ -235,6 +235,18 @@ func run() error {
 		return nil
 	})
 
+	handle.OnWorkflowRunEventRequested(func(deliveryID, eventName string, event *github.WorkflowRunEvent) error {
+		fmt.Println(event.Action)
+
+		return nil
+	})
+
+	handle.OnWorkflowRunEventCompleted(func(deliveryID, eventName string, event *github.WorkflowRunEvent) error {
+		fmt.Println(event.Action)
+
+		return nil
+	})
+
 	// add a http handleFunc
 	http.HandleFunc("/api/webhook", func(w http.ResponseWriter, r *http.Request) {
 		err := handle.HandleEventRequest(r)
