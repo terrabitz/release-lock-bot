@@ -93,6 +93,10 @@ func run() error {
 	})
 
 	handle.OnIssueCommentCreated(func(deliveryID, eventName string, event *github.IssueCommentEvent) error {
+		if !strings.HasPrefix(event.GetComment().GetBody(), "/override") {
+			return nil
+		}
+
 		fullName := strings.Split(event.GetRepo().GetFullName(), "/")
 		if len(fullName) != 2 {
 			return fmt.Errorf("invalid repo name '%s'", event.GetRepo().GetFullName())
@@ -114,17 +118,6 @@ func run() error {
 		if err != nil {
 			logger.Error("couldn't get install token", "err", err)
 			return fmt.Errorf("couldn't get install token for repo: %w", err)
-		}
-
-		// _, _, err = client.Reactions.CreateCommentReaction(context.TODO(), owner, repo, commentID, "eyes")
-		// if err != nil {
-		// 	logger.Error("couldn't create reaction", "err", err)
-		// 	return fmt.Errorf("couldn't create issue reaction: %w", err)
-		// }
-		// logger.Info("added reaction",
-		// 	"reaction", "eyes")
-		if !strings.HasPrefix(event.GetComment().GetBody(), "/override") {
-			return nil
 		}
 
 		pr, _, err := client.PullRequests.Get(context.Background(), owner, repo, event.GetIssue().GetNumber())
@@ -157,6 +150,15 @@ func run() error {
 			return fmt.Errorf("couldn't update checks: %w", err)
 		}
 
+		_, _, err = client.Reactions.CreateIssueCommentReaction(context.TODO(), owner, repo, commentID, "eyes")
+		if err != nil {
+			logger.Error("couldn't create reaction", "err", err)
+			return fmt.Errorf("couldn't create issue reaction: %w", err)
+		}
+		logger.Debug("added reaction",
+			"reaction", "eyes")
+
+		logger.Info("override release lock")
 		return nil
 	})
 
