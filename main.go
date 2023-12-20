@@ -269,18 +269,24 @@ func run() error {
 		var status *string
 		var conclusion *string
 		var title *string
-		if event.GetAction() == "completed" {
+		switch event.GetAction() {
+		case "completed":
 			status = github.String("completed")
-			if event.GetWorkflowRun().GetConclusion() == "success" {
+			switch event.GetWorkflowRun().GetConclusion() {
+			case "success":
 				conclusion = github.String("success")
 				title = github.String("Release unlocked")
-			} else if event.GetWorkflowRun().GetConclusion() == "failure" {
+			case "failure":
 				conclusion = github.String("failure")
 				title = github.String("Release locked due to failed deployment")
+			default:
+				return nil
 			}
-		} else if event.GetAction() == "requested" {
+		case "requested":
 			status = github.String("in_progress")
 			title = github.String("Release locked due to pending deployment")
+		default:
+			return nil
 		}
 
 		for _, pr := range prs {
