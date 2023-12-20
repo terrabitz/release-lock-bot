@@ -236,13 +236,13 @@ func run() error {
 	})
 
 	handle.OnWorkflowRunEventRequested(func(deliveryID, eventName string, event *github.WorkflowRunEvent) error {
-		fmt.Println(event.Action)
+		fmt.Println(event.GetAction())
 
 		return nil
 	})
 
 	handle.OnWorkflowRunEventCompleted(func(deliveryID, eventName string, event *github.WorkflowRunEvent) error {
-		fmt.Println(event.Action)
+		fmt.Println(event.GetAction())
 
 		return nil
 	})
