@@ -75,6 +75,18 @@ func run() error {
 			HeadSHA:    event.GetCheckSuite().GetHeadSHA(),
 			Status:     github.String("completed"),
 			Conclusion: github.String("failure"),
+			Output: &github.CheckRunOutput{
+				Title:   github.String("this is a test title"),
+				Summary: github.String("this is a test summary"),
+				Text:    github.String("this is a test text"),
+				Images: []*github.CheckRunImage{
+					{
+						ImageURL: github.String("https://picsum.photos/200/300"),
+						Alt:      github.String("A lorem ipsum in the wild"),
+						Caption:  github.String("A lorem ipsum in the wild"),
+					},
+				},
+			},
 			Actions: []*github.CheckRunAction{
 				{
 					Label:       "Override Lock",
