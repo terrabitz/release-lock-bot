@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - run: echo "Building..."
-      - run: sleep 15
+      - run: sleep 10
       - run: echo "Deploying!"
       - if: inputs.fail
         run: exit 1
