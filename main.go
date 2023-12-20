@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"log/slog"
@@ -62,13 +63,22 @@ func run() error {
 			"repo", repo,
 			"installationID", installationID,
 		)
-		logger.Debug("got PR sync hook")
+		logger.Debug("got check suite event")
 
-		// client, err := ghClient.GetInstallationClient(context.TODO(), installationID)
-		// if err != nil {
-		// 	logger.Error("couldn't get install token", "err", err)
-		// 	return fmt.Errorf("couldn't get install token for repo: %w", err)
-		// }
+		client, err := ghClient.GetInstallationClient(context.TODO(), installationID)
+		if err != nil {
+			logger.Error("couldn't get install token", "err", err)
+			return fmt.Errorf("couldn't get install token for repo: %w", err)
+		}
+
+		runs, _, err := client.Actions.ListWorkflowRunsByFileName(context.Background(), owner, repo, ".github/workflows/deploy.yaml", &github.ListWorkflowRunsOptions{})
+		if err != nil {
+			logger.Error("couldn't get workflows", "err", err)
+			return fmt.Errorf("couldn't get workflows: %w", err)
+		}
+
+		b, _ := json.MarshalIndent(runs, "", "  ")
+		fmt.Println(string(b))
 
 		// check, _, err := client.Checks.CreateCheckRun(context.TODO(), owner, repo, github.CreateCheckRunOptions{
 		// 	Name:    checkName,
