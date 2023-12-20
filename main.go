@@ -48,7 +48,7 @@ func run() error {
 	logger := newLogger(cfg)
 
 	handle := githubevents.New(cfg.WebhookSecret)
-	handle.OnPullRequestEventSynchronize(func(deliveryID, eventName string, event *github.PullRequestEvent) error {
+	handle.SetOnCheckSuiteEventAny(func(deliveryID, eventName string, event *github.CheckSuiteEvent) error {
 		fullName := strings.Split(event.GetRepo().GetFullName(), "/")
 		if len(fullName) != 2 {
 			return fmt.Errorf("invalid repo name '%s'", event.GetRepo().GetFullName())
@@ -72,7 +72,7 @@ func run() error {
 
 		_, _, err = client.Checks.CreateCheckRun(context.TODO(), owner, repo, github.CreateCheckRunOptions{
 			Name:       checkName,
-			HeadSHA:    event.GetAfter(),
+			HeadSHA:    event.GetCheckSuite().GetHeadSHA(),
 			Status:     github.String("completed"),
 			Conclusion: github.String("failure"),
 			Actions: []*github.CheckRunAction{
