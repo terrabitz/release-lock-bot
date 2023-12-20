@@ -71,7 +71,7 @@ func run() error {
 			return fmt.Errorf("couldn't get install token for repo: %w", err)
 		}
 
-		runs, _, err := client.Actions.ListWorkflowRunsByFileName(context.Background(), owner, repo, ".github/workflows/deploy.yaml", &github.ListWorkflowRunsOptions{})
+		runs, _, err := client.Actions.ListWorkflowRunsByFileName(context.Background(), owner, repo, "deploy.yaml", &github.ListWorkflowRunsOptions{})
 		if err != nil {
 			logger.Error("couldn't get workflows", "err", err)
 			return fmt.Errorf("couldn't get workflows: %w", err)
