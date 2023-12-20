@@ -76,7 +76,8 @@ func run() error {
 			HeadSHA: event.GetCheckSuite().GetHeadSHA(),
 			Status:  github.String("in_progress"),
 			Output: &github.CheckRunOutput{
-				Title: github.String("Release locked due to pending release"),
+				Title:   github.String("Release locked due to pending release"),
+				Summary: github.String("Release locked due to pending release"),
 			},
 		})
 		if err != nil {
@@ -90,7 +91,8 @@ func run() error {
 			Name:   checkName,
 			Status: github.String("failure"),
 			Output: &github.CheckRunOutput{
-				Title: github.String("Release locked due to failed release"),
+				Title:   github.String("Release locked due to failed release"),
+				Summary: github.String("Release locked due to failed release"),
 			},
 			Actions: []*github.CheckRunAction{
 				{
