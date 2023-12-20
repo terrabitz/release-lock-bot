@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log"
 	"log/slog"
@@ -77,47 +76,81 @@ func run() error {
 			return fmt.Errorf("couldn't get workflows: %w", err)
 		}
 
-		b, _ := json.MarshalIndent(runs, "", "  ")
-		fmt.Println(string(b))
+		if len(runs.WorkflowRuns) == 0 {
+			return nil
+		}
 
-		// check, _, err := client.Checks.CreateCheckRun(context.TODO(), owner, repo, github.CreateCheckRunOptions{
-		// 	Name:    checkName,
-		// 	HeadSHA: event.GetCheckSuite().GetHeadSHA(),
-		// 	Status:  github.String("in_progress"),
-		// 	Output: &github.CheckRunOutput{
-		// 		Title:   github.String("Release locked due to pending release"),
-		// 		Summary: github.String("Release locked due to pending release"),
-		// 	},
-		// })
-		// if err != nil {
-		// 	logger.Error("couldn't create check", "err", err)
-		// 	return fmt.Errorf("couldn't create check: %w", err)
-		// }
+		lastRun := runs.WorkflowRuns[0]
 
-		// time.Sleep(10 * time.Second)
+		var status *string
+		var conclusion *string
+		var title *string
+		switch lastRun.GetStatus() {
+		case "completed":
+			status = github.String("completed")
+			switch lastRun.GetConclusion() {
+			case "success":
+				conclusion = github.String("success")
+				title = github.String("Release unlocked")
+			case "failure":
+				conclusion = github.String("failure")
+				title = github.String("Release locked due to failed deployment")
+			default:
+				return nil
+			}
+		case "requested":
+			fallthrough
+		case "in_progress":
+			status = github.String("completed")
+			conclusion = github.String("failure")
+			title = github.String("Release locked due to pending deployment")
+		default:
+			return nil
+		}
 
-		// _, _, err = client.Checks.UpdateCheckRun(context.TODO(), owner, repo, check.GetID(), github.UpdateCheckRunOptions{
-		// 	Name:       checkName,
-		// 	Status:     github.String("completed"),
-		// 	Conclusion: github.String("failure"),
-		// 	Output: &github.CheckRunOutput{
-		// 		Title:   github.String("Release locked due to failed release"),
-		// 		Summary: github.String("Release locked due to failed release"),
-		// 	},
-		// 	Actions: []*github.CheckRunAction{
-		// 		{
-		// 			Label:       "Override Lock",
-		// 			Description: "Override the release lock",
-		// 			Identifier:  overrideReleaseLockActionID,
-		// 		},
-		// 	},
-		// })
-		// if err != nil {
-		// 	logger.Error("couldn't create check", "err", err)
-		// 	return fmt.Errorf("couldn't create check: %w", err)
-		// }
+		checkResults, _, err := client.Checks.ListCheckRunsCheckSuite(context.Background(), owner, repo, event.GetCheckSuite().GetID(), &github.ListCheckRunsOptions{
+			CheckName: github.String(checkName),
+			AppID:     github.Int64(cfg.GitHubAppID),
+		})
+		if err != nil {
+			logger.Error("couldn't get checks", "err", err)
+			return fmt.Errorf("couldn't get checks: %w", err)
+		}
 
-		// logger.Info("added failure status check")
+		if len(checkResults.CheckRuns) == 0 {
+			_, _, err = client.Checks.CreateCheckRun(context.Background(), owner, repo, github.CreateCheckRunOptions{
+				Name:       checkName,
+				HeadSHA:    event.GetCheckSuite().GetHeadSHA(),
+				Status:     status,
+				Conclusion: conclusion,
+				Output: &github.CheckRunOutput{
+					Title:   title,
+					Summary: title,
+				},
+			})
+			if err != nil {
+				logger.Error("couldn't create check", "err", err)
+				return fmt.Errorf("couldn't create checks: %w", err)
+			}
+
+			return nil
+		}
+		checkID := checkResults.CheckRuns[0].GetID()
+
+		_, _, err = client.Checks.UpdateCheckRun(context.Background(), owner, repo, checkID, github.UpdateCheckRunOptions{
+			Name:       checkName,
+			Status:     status,
+			Conclusion: conclusion,
+			Output: &github.CheckRunOutput{
+				Title:   title,
+				Summary: title,
+			},
+		})
+		if err != nil {
+			logger.Error("couldn't update check", "err", err)
+			return fmt.Errorf("couldn't update checks: %w", err)
+		}
+
 		return nil
 	})
 
