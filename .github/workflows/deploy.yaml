@@ -2,6 +2,9 @@ name: Deploy
 
 on:
   workflow_dispatch:
+    inputs:
+      fail:
+        type: boolean
 
 jobs:
   deploy:
@@ -11,3 +14,5 @@ jobs:
       - run: echo "Building..."
       - run: sleep 15
       - run: echo "Deploying!"
+      - if: inputs.fail
+        run: exit 1
