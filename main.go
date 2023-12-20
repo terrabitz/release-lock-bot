@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"os"
 	"strings"
-	"time"
 
 	"github.com/cbrgm/githubevents/githubevents"
 	"github.com/google/go-github/v56/github"
@@ -65,50 +64,50 @@ func run() error {
 		)
 		logger.Debug("got PR sync hook")
 
-		client, err := ghClient.GetInstallationClient(context.TODO(), installationID)
-		if err != nil {
-			logger.Error("couldn't get install token", "err", err)
-			return fmt.Errorf("couldn't get install token for repo: %w", err)
-		}
+		// client, err := ghClient.GetInstallationClient(context.TODO(), installationID)
+		// if err != nil {
+		// 	logger.Error("couldn't get install token", "err", err)
+		// 	return fmt.Errorf("couldn't get install token for repo: %w", err)
+		// }
 
-		check, _, err := client.Checks.CreateCheckRun(context.TODO(), owner, repo, github.CreateCheckRunOptions{
-			Name:    checkName,
-			HeadSHA: event.GetCheckSuite().GetHeadSHA(),
-			Status:  github.String("in_progress"),
-			Output: &github.CheckRunOutput{
-				Title:   github.String("Release locked due to pending release"),
-				Summary: github.String("Release locked due to pending release"),
-			},
-		})
-		if err != nil {
-			logger.Error("couldn't create check", "err", err)
-			return fmt.Errorf("couldn't create check: %w", err)
-		}
+		// check, _, err := client.Checks.CreateCheckRun(context.TODO(), owner, repo, github.CreateCheckRunOptions{
+		// 	Name:    checkName,
+		// 	HeadSHA: event.GetCheckSuite().GetHeadSHA(),
+		// 	Status:  github.String("in_progress"),
+		// 	Output: &github.CheckRunOutput{
+		// 		Title:   github.String("Release locked due to pending release"),
+		// 		Summary: github.String("Release locked due to pending release"),
+		// 	},
+		// })
+		// if err != nil {
+		// 	logger.Error("couldn't create check", "err", err)
+		// 	return fmt.Errorf("couldn't create check: %w", err)
+		// }
 
-		time.Sleep(10 * time.Second)
+		// time.Sleep(10 * time.Second)
 
-		_, _, err = client.Checks.UpdateCheckRun(context.TODO(), owner, repo, check.GetID(), github.UpdateCheckRunOptions{
-			Name:       checkName,
-			Status:     github.String("completed"),
-			Conclusion: github.String("failure"),
-			Output: &github.CheckRunOutput{
-				Title:   github.String("Release locked due to failed release"),
-				Summary: github.String("Release locked due to failed release"),
-			},
-			Actions: []*github.CheckRunAction{
-				{
-					Label:       "Override Lock",
-					Description: "Override the release lock",
-					Identifier:  overrideReleaseLockActionID,
-				},
-			},
-		})
-		if err != nil {
-			logger.Error("couldn't create check", "err", err)
-			return fmt.Errorf("couldn't create check: %w", err)
-		}
+		// _, _, err = client.Checks.UpdateCheckRun(context.TODO(), owner, repo, check.GetID(), github.UpdateCheckRunOptions{
+		// 	Name:       checkName,
+		// 	Status:     github.String("completed"),
+		// 	Conclusion: github.String("failure"),
+		// 	Output: &github.CheckRunOutput{
+		// 		Title:   github.String("Release locked due to failed release"),
+		// 		Summary: github.String("Release locked due to failed release"),
+		// 	},
+		// 	Actions: []*github.CheckRunAction{
+		// 		{
+		// 			Label:       "Override Lock",
+		// 			Description: "Override the release lock",
+		// 			Identifier:  overrideReleaseLockActionID,
+		// 		},
+		// 	},
+		// })
+		// if err != nil {
+		// 	logger.Error("couldn't create check", "err", err)
+		// 	return fmt.Errorf("couldn't create check: %w", err)
+		// }
 
-		logger.Info("added failure status check")
+		// logger.Info("added failure status check")
 		return nil
 	})
 
@@ -235,14 +234,81 @@ func run() error {
 		return nil
 	})
 
-	handle.OnWorkflowRunEventRequested(func(deliveryID, eventName string, event *github.WorkflowRunEvent) error {
-		fmt.Println(event.GetAction())
+	handle.SetOnWorkflowRunEventAny(func(deliveryID, eventName string, event *github.WorkflowRunEvent) error {
+		if event.GetWorkflow().GetPath() != ".github/workflows/deploy.yaml" { // FIXME parameterize this
+			return nil
+		}
 
-		return nil
-	})
+		fullName := strings.Split(event.GetRepo().GetFullName(), "/")
+		if len(fullName) != 2 {
+			return fmt.Errorf("invalid repo name '%s'", event.GetRepo().GetFullName())
+		}
 
-	handle.OnWorkflowRunEventCompleted(func(deliveryID, eventName string, event *github.WorkflowRunEvent) error {
-		fmt.Println(event.GetAction())
+		owner := fullName[0]
+		repo := fullName[1]
+		installationID := event.GetInstallation().GetID()
+
+		logger := logger.With(
+			"owner", owner,
+			"repo", repo,
+			"installationID", installationID,
+		)
+
+		client, err := ghClient.GetInstallationClient(context.TODO(), installationID)
+		if err != nil {
+			logger.Error("couldn't get install token", "err", err)
+			return fmt.Errorf("couldn't get install token for repo: %w", err)
+		}
+
+		prs, _, err := client.PullRequests.List(context.Background(), owner, repo, &github.PullRequestListOptions{})
+		if err != nil {
+			logger.Error("couldn't get PRs", "err", err)
+			return fmt.Errorf("couldn't get PRs: %w", err)
+		}
+
+		var status *string
+		var conclusion *string
+		var title *string
+		if event.GetAction() == "completed" {
+			status = github.String("completed")
+			if event.GetWorkflowRun().GetConclusion() == "success" {
+				conclusion = github.String("success")
+				title = github.String("Release unlocked")
+			} else if event.GetWorkflowRun().GetConclusion() == "failure" {
+				conclusion = github.String("failure")
+				title = github.String("Release locked due to failed deployment")
+			}
+		} else if event.GetAction() == "requested" {
+			status = github.String("in_progress")
+			title = github.String("Release locked due to pending deployment")
+		}
+
+		for _, pr := range prs {
+			checkResults, _, err := client.Checks.ListCheckRunsForRef(context.Background(), owner, repo, pr.GetHead().GetSHA(), &github.ListCheckRunsOptions{
+				CheckName: github.String(checkName),
+				AppID:     github.Int64(cfg.GitHubAppID),
+			})
+			if err != nil {
+				logger.Error("couldn't get checks", "err", err)
+				return fmt.Errorf("couldn't get checks: %w", err)
+			}
+
+			checkID := checkResults.CheckRuns[0].GetID()
+
+			_, _, err = client.Checks.UpdateCheckRun(context.Background(), owner, repo, checkID, github.UpdateCheckRunOptions{
+				Name:       checkName,
+				Status:     status,
+				Conclusion: conclusion,
+				Output: &github.CheckRunOutput{
+					Title:   title,
+					Summary: title,
+				},
+			})
+			if err != nil {
+				logger.Error("couldn't update check", "err", err)
+				return fmt.Errorf("couldn't update checks: %w", err)
+			}
+		}
 
 		return nil
 	})
