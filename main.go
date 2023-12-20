@@ -208,7 +208,7 @@ func run() error {
 	})
 
 	// add a http handleFunc
-	http.HandleFunc("/hook", func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("/api/webhook", func(w http.ResponseWriter, r *http.Request) {
 		err := handle.HandleEventRequest(r)
 		if err != nil {
 			fmt.Println("error")
