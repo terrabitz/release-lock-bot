@@ -293,6 +293,24 @@ func run() error {
 				return fmt.Errorf("couldn't get checks: %w", err)
 			}
 
+			if len(checkResults.CheckRuns) == 0 {
+				_, _, err = client.Checks.CreateCheckRun(context.Background(), owner, repo, github.CreateCheckRunOptions{
+					Name:       checkName,
+					HeadSHA:    pr.GetHead().GetSHA(),
+					Status:     status,
+					Conclusion: conclusion,
+					Output: &github.CheckRunOutput{
+						Title:   title,
+						Summary: title,
+					},
+				})
+				if err != nil {
+					logger.Error("couldn't create check", "err", err)
+					return fmt.Errorf("couldn't create checks: %w", err)
+				}
+
+				continue
+			}
 			checkID := checkResults.CheckRuns[0].GetID()
 
 			_, _, err = client.Checks.UpdateCheckRun(context.Background(), owner, repo, checkID, github.UpdateCheckRunOptions{
