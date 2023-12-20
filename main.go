@@ -283,7 +283,10 @@ func run() error {
 				return nil
 			}
 		case "requested":
-			status = github.String("in_progress")
+			fallthrough
+		case "in_progress":
+			status = github.String("completed")
+			conclusion = github.String("failure")
 			title = github.String("Release locked due to pending deployment")
 		default:
 			return nil
