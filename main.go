@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/cbrgm/githubevents/githubevents"
 	"github.com/google/go-github/v56/github"
@@ -70,22 +71,26 @@ func run() error {
 			return fmt.Errorf("couldn't get install token for repo: %w", err)
 		}
 
-		_, _, err = client.Checks.CreateCheckRun(context.TODO(), owner, repo, github.CreateCheckRunOptions{
-			Name:       checkName,
-			HeadSHA:    event.GetCheckSuite().GetHeadSHA(),
-			Status:     github.String("completed"),
-			Conclusion: github.String("failure"),
+		check, _, err := client.Checks.CreateCheckRun(context.TODO(), owner, repo, github.CreateCheckRunOptions{
+			Name:    checkName,
+			HeadSHA: event.GetCheckSuite().GetHeadSHA(),
+			Status:  github.String("in_progress"),
 			Output: &github.CheckRunOutput{
-				Title:   github.String("this is a test title"),
-				Summary: github.String("this is a test summary"),
-				Text:    github.String("this is a test text"),
-				Images: []*github.CheckRunImage{
-					{
-						ImageURL: github.String("https://picsum.photos/200/300"),
-						Alt:      github.String("A lorem ipsum in the wild"),
-						Caption:  github.String("A lorem ipsum in the wild"),
-					},
-				},
+				Title: github.String("Release locked due to pending release"),
+			},
+		})
+		if err != nil {
+			logger.Error("couldn't create check", "err", err)
+			return fmt.Errorf("couldn't create check: %w", err)
+		}
+
+		time.Sleep(10 * time.Second)
+
+		_, _, err = client.Checks.UpdateCheckRun(context.TODO(), owner, repo, check.GetID(), github.UpdateCheckRunOptions{
+			Name:   checkName,
+			Status: github.String("failure"),
+			Output: &github.CheckRunOutput{
+				Title: github.String("Release locked due to failed release"),
 			},
 			Actions: []*github.CheckRunAction{
 				{
@@ -156,6 +161,9 @@ func run() error {
 			Name:       checkName,
 			Status:     github.String("completed"),
 			Conclusion: github.String("success"),
+			Output: &github.CheckRunOutput{
+				Title: github.String("Release lock manually overridden"),
+			},
 		})
 		if err != nil {
 			logger.Error("couldn't update check", "err", err)
@@ -209,6 +217,9 @@ func run() error {
 			Name:       checkName,
 			Status:     github.String("completed"),
 			Conclusion: github.String("success"),
+			Output: &github.CheckRunOutput{
+				Title: github.String("Release lock manually overridden"),
+			},
 		})
 		if err != nil {
 			logger.Error("couldn't update check", "err", err)
